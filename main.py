@@ -1,6 +1,7 @@
 import spacy
 import csv
 import os
+import sys
 
 
 def txt_file_load(file_path: str) -> list:
@@ -9,9 +10,26 @@ def txt_file_load(file_path: str) -> list:
     return contents
 
 
-nlp = spacy.load("en_core_web_trf")
-# nlp = spacy.load("de_dep_news_trf")
-doc = nlp(txt_file_load(os.path.join("patent.txt")))
+def load_language_model():
+    try:
+        if sys.argv[1].lower() == "en":
+            return spacy.load("en_core_web_trf")
+        elif sys.argv[1].lower() == "de":
+            return spacy.load("de_dep_news_trf")
+        else:
+            print(
+                'Programm requieres input of either "en" or "de" on launch to select the english or german version respectivelly. Please try again with a valid argument.'
+            )
+            sys.exit()
+    except IndexError:
+        print(
+            'Programm requieres input of either "en" or "de" on launch to select the english or german versionre spectivelly.  Please try again with a valid argument.'
+        )
+        sys.exit()
+
+
+def process_document(nlp):
+    return nlp(txt_file_load(os.path.join("patent.txt")))
 
 
 def exclusion_list_load(file_path: str) -> list:
@@ -57,12 +75,14 @@ def ref_marks_extractor(doc):
 def ref_marks_csv_exporter(ref_marks: list):
     with open("Vztah_znacky.csv", mode="w", encoding="utf-8-sig", newline="") as file:
         writer = csv.writer(file, delimiter=";", dialect="excel")
-        writer.writerow(["IN Lang", "OUT Lang"])
+        writer.writerow([sys.argv[1], "cs"])
         for item in ref_marks:
             writer.writerow([item, "."])
 
 
 def main():
+    nlp = load_language_model()
+    doc = process_document(nlp)
     ref_marks = list(ref_marks_extractor(doc))
     ref_marks.sort()
     ref_marks_csv_exporter(ref_marks)
