@@ -1,7 +1,7 @@
+#! venv/Scripts/python
 import spacy
 import csv
 import os
-import sys
 
 
 def txt_file_load(file_path: str) -> list:
@@ -11,21 +11,18 @@ def txt_file_load(file_path: str) -> list:
 
 
 def load_language_model():
-    try:
-        if sys.argv[1].lower() == "en":
+    while True:
+        lang_select = input(
+            'Please enter either "en" or "de" for processing in the respective language: '
+        ).lower()
+        if lang_select == "en":
             return spacy.load("en_core_web_trf")
-        elif sys.argv[1].lower() == "de":
+        elif lang_select == "de":
             return spacy.load("de_dep_news_trf")
         else:
             print(
-                'Programm requieres input of either "en" or "de" on launch to select the english or german version respectivelly. Please try again with a valid argument.'
+                'Program requires input of either "en" or "de" on launch to select the English or German version respectively. Please try again with a valid argument.'
             )
-            sys.exit()
-    except IndexError:
-        print(
-            'Programm requieres input of either "en" or "de" on launch to select the english or german versionre spectivelly.  Please try again with a valid argument.'
-        )
-        sys.exit()
 
 
 def process_document(nlp):
@@ -75,7 +72,7 @@ def ref_marks_extractor(doc):
 def ref_marks_csv_exporter(ref_marks: list):
     with open("Vztah_znacky.csv", mode="w", encoding="utf-8-sig", newline="") as file:
         writer = csv.writer(file, delimiter=";", dialect="excel")
-        writer.writerow([sys.argv[1], "cs"])
+        writer.writerow(["en", "cs"])
         for item in ref_marks:
             writer.writerow([item, "."])
 
