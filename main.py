@@ -25,7 +25,7 @@ def load_language_model():
             return stanza.Pipeline("cs"), lang_select
         else:
             print(
-                'Program requires input of either "cs", "en", "de" or "fr" on launch to select either Czech, English, German or French version respectively. Please try again with a valid argument.'
+                'Program requires input of either "cs", "en" or "de" on launch to select either Czech, English or German version respectively. Please try again with a valid argument.'
             )
 
 
@@ -38,13 +38,14 @@ def process_document(nlp, lang_choice: str):
         return nlp(cleaned_text)
 
 
-def black_list_load(file_path: str) -> list:
+def blacklist_load(file_path: str) -> list:
     with open(file_path, encoding="UTF-8") as f:
         contents = f.read()
     return contents.split()
 
 
 def add_ref_mark_en_de(doc, token):
+    """According to set linguistic parameters for English and German inside the if condition of the while loop, the function return either a single reference mark when the if conditions are not met or a compound reference mark when they are. When checking for compounds the function check backwards from the number string until conditions are no longer met."""
     single_ref_mark = doc[token.i - 1]
     compund_ref_mark = list()
     count = 2
@@ -69,6 +70,7 @@ def add_ref_mark_en_de(doc, token):
 
 
 def add_ref_mark_cs(i, words):
+    """According to set linguistic parameters for Czech inside the if condition of the while loop, the function return either a single reference mark when the if conditions are not met or a compound reference mark when they are. When checking for compounds the function check backwards from the number string until conditions are no longer met."""
     single_ref_mark = words[i - 1]
     compund_ref_mark = list()
     count = 2
@@ -85,14 +87,15 @@ def add_ref_mark_cs(i, words):
         return single_ref_mark.lemma.lower()
 
 
-def extraction_en_de(doc, black_list: list, mode="b"):
+def extraction_en_de(doc, blacklist: list, mode="b"):
+    """According to the mode selected by the user, the function applies either broad conditions to the extraction of the reference marks from English or German or precise conditions. Precise mode adds reference mark numbers to the blacklist and ignores them if it encounters them again. Broad mode checks repeated reference mark numbers and adds them to the reference marks list."""
     ref_marks = list()
     if mode == "b":
         for token in doc:
             if (
                 token.pos_ == "NUM"
                 and not token.is_alpha
-                and doc[token.i - 1].lemma_ not in black_list
+                and doc[token.i - 1].lemma_ not in blacklist
                 and doc[token.i - 1].pos_ == "NOUN"
                 and len(token.text) > 1
             ):
@@ -102,17 +105,18 @@ def extraction_en_de(doc, black_list: list, mode="b"):
             if (
                 token.pos_ == "NUM"
                 and not token.is_alpha
-                and token.text not in black_list
-                and doc[token.i - 1].lemma_ not in black_list
+                and token.text not in blacklist
+                and doc[token.i - 1].lemma_ not in blacklist
                 and doc[token.i - 1].pos_ == "NOUN"
                 and len(token.text) > 1
             ):
                 ref_marks.append(add_ref_mark_en_de(doc, token))
-                black_list.append(token.text)
+                blacklist.append(token.text)
     return set(ref_marks)
 
 
-def extraction_cs(doc, black_list: list, mode="b"):
+def extraction_cs(doc, blacklist: list, mode="b"):
+    """According to the mode selected by the user, the function applies either broad conditions to the extraction of the reference marks from Czech or precise conditions. Precise mode adds reference mark numbers to the blacklist and ignores them if it encounters them again. Broad mode checks repeated reference mark numbers and adds them to the reference marks list."""
     ref_marks = list()
     if mode == "b":
         for sentence in doc.sentences:
@@ -121,7 +125,7 @@ def extraction_cs(doc, black_list: list, mode="b"):
                 if (
                     words[i].pos == "NUM"
                     and not words[i].text.isalpha()
-                    and words[i - 1].lemma not in black_list
+                    and words[i - 1].lemma not in blacklist
                     and words[i - 1].pos in ["NOUN", "ADV"]
                     and len(words[i - 1].text) > 1
                 ):
@@ -132,14 +136,14 @@ def extraction_cs(doc, black_list: list, mode="b"):
             for i in range(0, len(words)):
                 if (
                     words[i].pos == "NUM"
-                    and words[i].text not in black_list
+                    and words[i].text not in blacklist
                     and not words[i].text.isalpha()
-                    and words[i - 1].lemma not in black_list
+                    and words[i - 1].lemma not in blacklist
                     and words[i - 1].pos in ["NOUN", "ADV"]
                     and len(words[i - 1].text) > 1
                 ):
                     ref_marks.append(add_ref_mark_cs(i, words))
-                    black_list.append(words[i].text)
+                    blacklist.append(words[i].text)
     return set(ref_marks)
 
 
@@ -148,7 +152,7 @@ def ref_marks_extractor(doc, lang_choice: str):
         mode = input(
             "Please choose either Broad or Precision mode. Broad mode returns more hits that can be almost identical but is less likely to miss anything and Precision mode returns only one hit for each reference mark number, so it returns less identical results but is more likely to return a false positive and miss a reference mark. Write 'b' for Broad mode or 'p' for Precision mode: "
         ).lower()
-        black_list = black_list_load(os.path.join("black_list.txt"))
+        black_list = blacklist_load(os.path.join("blacklist.txt"))
         if lang_choice != "cs":
             return list(extraction_en_de(doc, black_list, mode)), mode
         elif lang_choice == "cs":
