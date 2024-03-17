@@ -44,144 +44,102 @@ def black_list_load(file_path: str) -> list:
     return contents.split()
 
 
-def broad_loop_en_de(doc, black_list: list):
-    ref_marks = list()
-    for token in doc:
+def add_ref_mark_en_de(doc, token):
+    single_ref_mark = doc[token.i - 1]
+    compund_ref_mark = list()
+    count = 2
+    while True:
         if (
-            token.pos_ == "NUM"
-            and not token.is_alpha
-            and doc[token.i - 1].lemma_ not in black_list
-            and doc[token.i - 1].pos_ == "NOUN"
+            doc[token.i - count].pos_ == "ADJ"
+            or doc[token.i - count].dep_ == "amod"
+            or (
+                doc[token.i - count].pos_ == "NOUN"
+                and doc[token.i - count].dep_ == "compound"
+            )
         ):
-            single_ref_mark = doc[token.i - 1]
-            compund_ref_mark = list()
-            count = 2
-            while True:
-                if (
-                    doc[token.i - count].pos_ == "ADJ"
-                    or doc[token.i - count].dep_ == "amod"
-                    or (
-                        doc[token.i - count].pos_ == "NOUN"
-                        and doc[token.i - count].dep_ == "compound"
-                    )
-                ):
-                    compund_ref_mark.append(doc[token.i - count].text)
-                    count += 1
-                else:
-                    break
-            if len(compund_ref_mark) != 0:
-                compund_ref_mark.reverse()
-                ref_marks.append(f"{' '.join(compund_ref_mark)} {single_ref_mark}")
-            else:
-                ref_marks.append(single_ref_mark.lemma_)
-    return set(ref_marks)
+            compund_ref_mark.append(doc[token.i - count].text)
+            count += 1
+        else:
+            break
+    if len(compund_ref_mark) != 0:
+        compund_ref_mark.reverse()
+        return f"{' '.join(compund_ref_mark)} {single_ref_mark}"
+    else:
+        return single_ref_mark.lemma_
 
 
-def precision_loop_en_de(doc, black_list: list):
+def add_ref_mark_cs(i, words):
+    single_ref_mark = words[i - 1]
+    compund_ref_mark = list()
+    count = 2
+    while True:
+        if words[i - count].pos == "ADJ" and words[i - count].deprel == "amod":
+            compund_ref_mark.append(words[i - count].text)
+            count += 1
+        else:
+            break
+    if len(compund_ref_mark) != 0:
+        compund_ref_mark.reverse()
+        return f"{' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
+    else:
+        return single_ref_mark.lemma.lower()
+
+
+def extraction_en_de(doc, black_list: list, mode="b"):
     ref_marks = list()
-    for token in doc:
-        if (
-            token.pos_ == "NUM"
-            and not token.is_alpha
-            and token.text not in black_list
-            and doc[token.i - 1].lemma_ not in black_list
-            and doc[token.i - 1].pos_ == "NOUN"
-            and len(token.text) > 1
-        ):
-            single_ref_mark = doc[token.i - 1]
-            black_list.append(token.text)
-            compund_ref_mark = list()
-            count = 2
-            while True:
+    if mode == "b":
+        for token in doc:
+            if (
+                token.pos_ == "NUM"
+                and not token.is_alpha
+                and doc[token.i - 1].lemma_ not in black_list
+                and doc[token.i - 1].pos_ == "NOUN"
+                and len(token.text) > 1
+            ):
+                ref_marks.append(add_ref_mark_en_de(doc, token))
+    elif mode == "p":
+        for token in doc:
+            if (
+                token.pos_ == "NUM"
+                and not token.is_alpha
+                and token.text not in black_list
+                and doc[token.i - 1].lemma_ not in black_list
+                and doc[token.i - 1].pos_ == "NOUN"
+                and len(token.text) > 1
+            ):
+                ref_marks.append(add_ref_mark_en_de(doc, token))
+                black_list.append(token.text)
+    return set(ref_marks)
+
+
+def extraction_cs(doc, black_list: list, mode="b"):
+    ref_marks = list()
+    if mode == "b":
+        for sentence in doc.sentences:
+            words = sentence.words
+            for i in range(0, len(words)):
                 if (
-                    doc[token.i - count].pos_ == "ADJ"
-                    or doc[token.i - count].dep_ == "amod"
-                    or (
-                        doc[token.i - count].pos_ == "NOUN"
-                        and doc[token.i - count].dep_ == "compound"
-                    )
+                    words[i].pos == "NUM"
+                    and not words[i].text.isalpha()
+                    and words[i - 1].lemma not in black_list
+                    and words[i - 1].pos in ["NOUN", "ADV"]
+                    and len(words[i - 1].text) > 1
                 ):
-                    compund_ref_mark.append(doc[token.i - count].text)
-                    count += 1
-                else:
-                    break
-            if len(compund_ref_mark) != 0:
-                compund_ref_mark.reverse()
-                ref_marks.append(f"{' '.join(compund_ref_mark)} {single_ref_mark}")
-            else:
-                ref_marks.append(single_ref_mark.lemma_)
-    return set(ref_marks)
-
-
-def precision_loop_cs(doc, black_list: list):
-    ref_marks = []
-    black_list = black_list_load(os.path.join("black_list.txt"))
-    for sentence in doc.sentences:
-        words = sentence.words
-        for i in range(0, len(words)):
-            if (
-                words[i].pos == "NUM"
-                and words[i].text not in black_list
-                and not words[i].text.isalpha()
-                and words[i - 1].lemma not in black_list
-                and words[i - 1].pos in ["NOUN", "ADV"]
-                and len(words[i - 1].text) > 1
-            ):
-                single_ref_mark = words[i - 1]
-                black_list.append(words[i].text)
-                compund_ref_mark = list()
-                count = 2
-                while True:
-                    if (
-                        words[i - count].pos == "ADJ"
-                        and words[i - count].deprel == "amod"
-                    ):
-                        compund_ref_mark.append(words[i - count].text)
-                        count += 1
-                    else:
-                        break
-                if len(compund_ref_mark) != 0:
-                    compund_ref_mark.reverse()
-                    ref_marks.append(
-                        f"{' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
-                    )
-                else:
-                    ref_marks.append(single_ref_mark.lemma.lower())
-    return set(ref_marks)
-
-
-def broad_loop_cs(doc, black_list: list):
-    ref_marks = []
-    black_list = black_list_load(os.path.join("black_list.txt"))
-    for sentence in doc.sentences:
-        words = sentence.words
-        for i in range(0, len(words)):
-            if (
-                words[i].pos == "NUM"
-                and not words[i].text.isalpha()
-                and words[i - 1].lemma not in black_list
-                and words[i - 1].pos in ["NOUN", "ADV"]
-                and len(words[i - 1].text) > 1
-            ):
-                single_ref_mark = words[i - 1]
-                compund_ref_mark = list()
-                count = 2
-                while True:
-                    if (
-                        words[i - count].pos == "ADJ"
-                        and words[i - count].deprel == "amod"
-                    ):
-                        compund_ref_mark.append(words[i - count].text)
-                        count += 1
-                    else:
-                        break
-                if len(compund_ref_mark) != 0:
-                    compund_ref_mark.reverse()
-                    ref_marks.append(
-                        f"{' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
-                    )
-                else:
-                    ref_marks.append(single_ref_mark.lemma.lower())
+                    ref_marks.append(add_ref_mark_cs(i, words))
+    elif mode == "p":
+        for sentence in doc.sentences:
+            words = sentence.words
+            for i in range(0, len(words)):
+                if (
+                    words[i].pos == "NUM"
+                    and words[i].text not in black_list
+                    and not words[i].text.isalpha()
+                    and words[i - 1].lemma not in black_list
+                    and words[i - 1].pos in ["NOUN", "ADV"]
+                    and len(words[i - 1].text) > 1
+                ):
+                    ref_marks.append(add_ref_mark_cs(i, words))
+                    black_list.append(words[i].text)
     return set(ref_marks)
 
 
@@ -191,14 +149,10 @@ def ref_marks_extractor(doc, lang_choice: str):
             "Please choose either Broad or Precision mode. Broad mode returns more hits that can be almost identical but is less likely to miss anything and Precision mode returns only one hit for each reference mark number, so it returns less identical results but is more likely to return a false positive and miss a reference mark. Write 'b' for Broad mode or 'p' for Precision mode: "
         ).lower()
         black_list = black_list_load(os.path.join("black_list.txt"))
-        if mode == "b" and lang_choice != "cs":
-            return list(broad_loop_en_de(doc, black_list)), mode
-        elif mode == "p" and lang_choice != "cs":
-            return list(precision_loop_en_de(doc, black_list)), mode
-        elif mode == "b" and lang_choice == "cs":
-            return list(broad_loop_cs(doc, black_list)), mode
-        elif mode == "p" and lang_choice == "cs":
-            return list(precision_loop_cs(doc, black_list)), mode
+        if lang_choice != "cs":
+            return list(extraction_en_de(doc, black_list, mode)), mode
+        elif lang_choice == "cs":
+            return list(extraction_cs(doc, black_list, mode)), mode
         else:
             print("*" * 80)
             print("Please provide a valid input.")
