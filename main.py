@@ -44,7 +44,7 @@ def blacklist_load(file_path: str) -> list:
     return contents.split()
 
 
-def add_ref_mark_en_de(doc, token):
+def add_ref_mark_en_de(doc, token, numbers):
     """According to set linguistic parameters for English and German inside the if condition of the while loop, the function return either a single reference mark when the if conditions are not met or a compound reference mark when they are. When checking for compounds the function check backwards from the number string until conditions are no longer met."""
     single_ref_mark = doc[token.i - 1]
     compund_ref_mark = list()
@@ -64,12 +64,18 @@ def add_ref_mark_en_de(doc, token):
             break
     if len(compund_ref_mark) != 0:
         compund_ref_mark.reverse()
-        return f"{' '.join(compund_ref_mark)} {single_ref_mark}"
+        if numbers:
+            return f"{token.text.strip('.')} {' '.join(compund_ref_mark)} {single_ref_mark}"
+        else:
+            return f"{' '.join(compund_ref_mark)} {single_ref_mark}"
     else:
-        return single_ref_mark.lemma_
+        if numbers:
+            return f"{token.text.strip('.')} {single_ref_mark.lemma_}"
+        else:
+            return single_ref_mark.lemma_
 
 
-def add_ref_mark_cs(i, words):
+def add_ref_mark_cs(i, words, numbers):
     """According to set linguistic parameters for Czech inside the if condition of the while loop, the function return either a single reference mark when the if conditions are not met or a compound reference mark when they are. When checking for compounds the function check backwards from the number string until conditions are no longer met."""
     single_ref_mark = words[i - 1]
     compund_ref_mark = list()
@@ -82,24 +88,32 @@ def add_ref_mark_cs(i, words):
             break
     if len(compund_ref_mark) != 0:
         compund_ref_mark.reverse()
-        return f"{' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
+        if numbers:
+            return f"{words[i].text} {' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
+        else:
+            return (
+                f"{' '.join(compund_ref_mark).lower()} {single_ref_mark.text.lower()}"
+            )
     else:
-        return single_ref_mark.lemma.lower()
+        if numbers:
+            return f"{words[i].text} {single_ref_mark.lemma.lower()}"
+        else:
+            return single_ref_mark.lemma.lower()
 
 
-def extraction_en_de(doc, blacklist: list, mode="b"):
+def extraction_en_de(doc, blacklist: list, mode="b", numbers=False):
     """According to the mode selected by the user, the function applies either broad conditions to the extraction of the reference marks from English or German or precise conditions. Precise mode adds reference mark numbers to the blacklist and ignores them if it encounters them again. Broad mode checks repeated reference mark numbers and adds them to the reference marks list."""
     ref_marks = list()
     if mode == "b":
         for token in doc:
             if (
-                token.pos_ == "NUM"
+                (token.pos_ == "NUM" or token.like_num)
                 and not token.is_alpha
                 and doc[token.i - 1].lemma_ not in blacklist
                 and doc[token.i - 1].pos_ == "NOUN"
-                and len(token.text) > 1
+                and len(doc[token.i - 1]) > 1
             ):
-                ref_marks.append(add_ref_mark_en_de(doc, token))
+                ref_marks.append(add_ref_mark_en_de(doc, token, numbers))
     elif mode == "p":
         for token in doc:
             if (
@@ -108,14 +122,14 @@ def extraction_en_de(doc, blacklist: list, mode="b"):
                 and token.text not in blacklist
                 and doc[token.i - 1].lemma_ not in blacklist
                 and doc[token.i - 1].pos_ == "NOUN"
-                and len(token.text) > 1
+                and len(doc[token.i - 1]) > 1
             ):
-                ref_marks.append(add_ref_mark_en_de(doc, token))
+                ref_marks.append(add_ref_mark_en_de(doc, token, numbers))
                 blacklist.append(token.text)
     return set(ref_marks)
 
 
-def extraction_cs(doc, blacklist: list, mode="b"):
+def extraction_cs(doc, blacklist: list, mode="b", numbers=False):
     """According to the mode selected by the user, the function applies either broad conditions to the extraction of the reference marks from Czech or precise conditions. Precise mode adds reference mark numbers to the blacklist and ignores them if it encounters them again. Broad mode checks repeated reference mark numbers and adds them to the reference marks list."""
     ref_marks = list()
     if mode == "b":
@@ -129,7 +143,7 @@ def extraction_cs(doc, blacklist: list, mode="b"):
                     and words[i - 1].pos in ["NOUN", "ADV"]
                     and len(words[i - 1].text) > 1
                 ):
-                    ref_marks.append(add_ref_mark_cs(i, words))
+                    ref_marks.append(add_ref_mark_cs(i, words, numbers))
     elif mode == "p":
         for sentence in doc.sentences:
             words = sentence.words
@@ -142,7 +156,7 @@ def extraction_cs(doc, blacklist: list, mode="b"):
                     and words[i - 1].pos in ["NOUN", "ADV"]
                     and len(words[i - 1].text) > 1
                 ):
-                    ref_marks.append(add_ref_mark_cs(i, words))
+                    ref_marks.append(add_ref_mark_cs(i, words, numbers))
                     blacklist.append(words[i].text)
     return set(ref_marks)
 
@@ -150,13 +164,25 @@ def extraction_cs(doc, blacklist: list, mode="b"):
 def ref_marks_extractor(doc, lang_choice: str):
     while True:
         mode = input(
-            "Please choose either Broad or Precision mode. Broad mode returns more hits that can be almost identical but is less likely to miss anything and Precision mode returns only one hit for each reference mark number, so it returns less identical results but is more likely to return a false positive and miss a reference mark. Write 'b' for Broad mode or 'p' for Precision mode: "
+            "Please choose either Broad or Precision mode. Broad mode returns more hits that can be almost identical but is less likely to miss anything, and Precision mode returns only unique hits for each reference mark number, so it returns less identical results but is more likely to return a false positive and miss a reference mark. Write 'b' for Broad mode or 'p' for Precision mode: "
         ).lower()
+        numbers = False
+        while True:
+            choice = input(
+                "Do you want to display reference mark numbers in the CSV file? y/n: "
+            ).lower()
+            if choice == "y":
+                numbers = True
+                break
+            elif choice == "n":
+                break
+            else:
+                print('Please write either "y" or "n".')
         black_list = blacklist_load(os.path.join("blacklist.txt"))
         if lang_choice != "cs":
-            return list(extraction_en_de(doc, black_list, mode)), mode
+            return list(extraction_en_de(doc, black_list, mode, numbers)), mode
         elif lang_choice == "cs":
-            return list(extraction_cs(doc, black_list, mode)), mode
+            return list(extraction_cs(doc, black_list, mode, numbers)), mode
         else:
             print("*" * 80)
             print("Please provide a valid input.")
